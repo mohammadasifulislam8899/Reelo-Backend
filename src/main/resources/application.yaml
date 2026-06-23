@@ -1,0 +1,23 @@
+ktor:
+  deployment:
+    port: 8080
+  application:
+    modules:
+      - com.xentoryx.labs.reelo.core.di.KoinKt.configureKoin
+      - com.xentoryx.labs.reelo.core.plugins.SerializationKt.configureSerialization
+      - com.xentoryx.labs.reelo.core.plugins.CallLoggingKt.configureCallLogging
+      - com.xentoryx.labs.reelo.core.plugins.SecurityKt.configureSecurity
+      - com.xentoryx.labs.reelo.core.db.DatabaseKt.configureDatabase
+      - com.xentoryx.labs.reelo.core.plugins.StatusPagesKt.configureStatusPages
+      - com.xentoryx.labs.reelo.core.plugins.RequestValidationKt.configureRequestValidation
+      - com.xentoryx.labs.reelo.core.plugins.AutoHeadResponseKt.configureAutoHeadResponse
+      - com.xentoryx.labs.reelo.core.plugins.CorsKt.configureCors
+      - com.xentoryx.labs.reelo.core.plugins.RateLimitingKt.configureRateLimiting
+      - com.xentoryx.labs.reelo.core.plugins.RoutingKt.configureRouting
+
+database:
+  r2dbcUrl: "r2dbc:postgresql://localhost:5432/reelo"
+  user: "postgres"
+  password: "postgres"
+
+
