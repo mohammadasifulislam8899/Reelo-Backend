@@ -14,5 +14,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: reelo-pgweb
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/reelo?sslmode=disable
+    depends_on:
+      - db
+
 volumes:
   postgres_data:
