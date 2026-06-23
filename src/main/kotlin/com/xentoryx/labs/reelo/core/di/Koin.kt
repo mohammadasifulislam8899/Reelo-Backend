@@ -11,6 +11,9 @@ fun Application.configureKoin() {
     install(Koin) {
         slf4jLogger()
         modules(
+            module {
+                single<Application> { this@configureKoin }
+            },
             databaseModule,
             module {
                 // We will inject our services and repositories here

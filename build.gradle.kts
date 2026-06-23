@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.koin.loggerSlf4j)
     implementation(libs.logback.classic)
     implementation(libs.postgresql)
+    implementation(libs.postgresql.r2dbc)
     implementation(libs.aws.sdk.s3)
     implementation(ktorLibs.server.cors)
 
