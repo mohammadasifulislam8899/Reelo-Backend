@@ -1,9 +1,15 @@
 package com.xentoryx.labs.reelo.core.db
 
 import io.ktor.server.application.Application
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
+import org.jetbrains.exposed.v1.r2dbc.SchemaUtils
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.koin.dsl.module
 import org.koin.ktor.ext.inject
+
+// Import all centralized database tables
+import com.xentoryx.labs.reelo.core.db.schema.*
 
 val databaseModule = module {
     single<R2dbcDatabase> {
@@ -24,4 +30,20 @@ val databaseModule = module {
 fun Application.configureDatabase() {
     // Triggers the database connection immediately on startup
     val database by inject<R2dbcDatabase>()
+
+    // Run schema creation on startup to verify/create missing tables and columns
+    runBlocking {
+        suspendTransaction(db = database) {
+            SchemaUtils.createMissingTablesAndColumns(
+                UsersTable,
+                VerificationTokensTable,
+                VideosTable,
+                CommentsTable,
+                SubscriptionsTable,
+                VideoLikesTable,
+                PlaylistsTable,
+                PlaylistVideosTable
+            )
+        }
+    }
 }
