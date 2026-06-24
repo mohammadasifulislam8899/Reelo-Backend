@@ -1,126 +1,32 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 package com.xentoryx.labs.reelo.feature.auth.data.repository
 
-import com.xentoryx.labs.reelo.core.db.schema.UsersTable
-import com.xentoryx.labs.reelo.core.db.schema.VerificationTokensTable
+import com.xentoryx.labs.reelo.feature.auth.data.local.datasource.AuthLocalDataSource
 import com.xentoryx.labs.reelo.feature.auth.domain.model.User
 import com.xentoryx.labs.reelo.feature.auth.domain.repository.AuthRepository
-import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
-import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
-import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.r2dbc.insert
-import org.jetbrains.exposed.v1.r2dbc.update
-import org.jetbrains.exposed.v1.r2dbc.deleteWhere
-import org.jetbrains.exposed.v1.r2dbc.selectAll
-import java.time.LocalDateTime
 import kotlin.uuid.Uuid
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.singleOrNull
 
-class AuthRepositoryImpl(private val database: R2dbcDatabase) : AuthRepository {
+class AuthRepositoryImpl(
+    private val localDataSource: AuthLocalDataSource
+) : AuthRepository {
 
-    private fun toUser(row: ResultRow): User {
-        return User(
-            id = row[UsersTable.id],
-            email = row[UsersTable.email],
-            passwordHash = row[UsersTable.passwordHash],
-            name = row[UsersTable.name],
-            avatarUrl = row[UsersTable.avatarUrl],
-            bannerUrl = row[UsersTable.bannerUrl],
-            bio = row[UsersTable.bio],
-            isVerified = row[UsersTable.isVerified],
-            createdAt = row[UsersTable.createdAt],
-            updatedAt = row[UsersTable.updatedAt]
-        )
+    override suspend fun getUserByEmail(email: String): User? {
+        return localDataSource.getUserByEmail(email)
     }
 
-    override suspend fun getUserByEmail(email: String): User? = suspendTransaction(db = database) {
-        UsersTable.selectAll()
-            .where { UsersTable.email eq email }
-            .map { toUser(it) }
-            .singleOrNull()
+    override suspend fun getUserById(id: Uuid): User? {
+        return localDataSource.getUserById(id)
     }
 
-    override suspend fun getUserById(id: Uuid): User? = suspendTransaction(db = database) {
-        UsersTable.selectAll()
-            .where { UsersTable.id eq id }
-            .map { toUser(it) }
-            .singleOrNull()
+    override suspend fun createUser(email: String, passwordHash: String, name: String): User {
+        return localDataSource.createUser(email, passwordHash, name)
     }
 
-    override suspend fun createUser(email: String, passwordHash: String, name: String): User = suspendTransaction(db = database) {
-        val newId = Uuid.random()
-        val now = LocalDateTime.now()
-        
-        UsersTable.insert {
-            it[id] = newId
-            it[UsersTable.email] = email
-            it[UsersTable.passwordHash] = passwordHash
-            it[UsersTable.name] = name
-            it[avatarUrl] = null
-            it[bannerUrl] = null
-            it[bio] = null
-            it[isVerified] = false
-            it[createdAt] = now
-            it[updatedAt] = now
-        }
-        
-        User(
-            id = newId,
-            email = email,
-            passwordHash = passwordHash,
-            name = name,
-            avatarUrl = null,
-            bannerUrl = null,
-            bio = null,
-            isVerified = false,
-            createdAt = now,
-            updatedAt = now
-        )
+    override suspend fun createVerificationToken(userId: Uuid, token: String): Boolean {
+        return localDataSource.createVerificationToken(userId, token)
     }
 
-    override suspend fun createVerificationToken(userId: Uuid, token: String): Boolean = suspendTransaction(db = database) {
-        val userRow = UsersTable.selectAll()
-            .where { UsersTable.id eq userId }
-            .singleOrNull() ?: return@suspendTransaction false
-        val email = userRow[UsersTable.email]
-        val now = LocalDateTime.now()
-        val expiresAtTime = now.plusHours(24)
-
-        // Delete existing tokens for this email
-        VerificationTokensTable.deleteWhere { VerificationTokensTable.email eq email }
-
-        VerificationTokensTable.insert {
-            it[id] = Uuid.random()
-            it[VerificationTokensTable.email] = email
-            it[VerificationTokensTable.token] = token
-            it[type] = "EMAIL_VERIFICATION"
-            it[expiresAt] = expiresAtTime
-        }
-        true
-    }
-
-    override suspend fun verifyUser(email: String, token: String): Boolean = suspendTransaction(db = database) {
-        val tokenRow = VerificationTokensTable.selectAll()
-            .where {
-                (VerificationTokensTable.email eq email) and (VerificationTokensTable.token eq token) and (VerificationTokensTable.type eq "EMAIL_VERIFICATION")
-            }.singleOrNull() ?: return@suspendTransaction false
-
-        val expiresAtVal = tokenRow[VerificationTokensTable.expiresAt]
-        if (expiresAtVal.isBefore(LocalDateTime.now())) {
-            return@suspendTransaction false
-        }
-
-        // Update user
-        UsersTable.update({ UsersTable.email eq email }) {
-            it[isVerified] = true
-            it[updatedAt] = LocalDateTime.now()
-        }
-
-        // Delete token
-        VerificationTokensTable.deleteWhere { VerificationTokensTable.email eq email }
-
-        true
+    override suspend fun verifyUser(email: String, token: String): Boolean {
+        return localDataSource.verifyUser(email, token)
     }
 }

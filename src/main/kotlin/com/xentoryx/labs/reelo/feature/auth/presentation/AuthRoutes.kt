@@ -18,7 +18,7 @@ import com.xentoryx.labs.reelo.feature.auth.domain.usecase.RefreshTokensUseCase
 import com.xentoryx.labs.reelo.feature.auth.domain.usecase.VerifyUserUseCase
 import com.xentoryx.labs.reelo.feature.auth.domain.usecase.GetUserUseCase
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.*
-import com.xentoryx.labs.reelo.feature.auth.data.mapper.toUserResponse
+import com.xentoryx.labs.reelo.feature.auth.presentation.mapper.toUserResponse
 import org.koin.ktor.ext.inject
 import kotlin.uuid.Uuid
 

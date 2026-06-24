@@ -1,5 +1,5 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
-package com.xentoryx.labs.reelo.feature.auth.data.mapper
+package com.xentoryx.labs.reelo.feature.auth.presentation.mapper
 
 import com.xentoryx.labs.reelo.feature.auth.domain.model.User
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.UserResponse
