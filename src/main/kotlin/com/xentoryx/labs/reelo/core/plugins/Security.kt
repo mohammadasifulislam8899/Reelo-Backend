@@ -8,10 +8,12 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 
 fun Application.configureSecurity() {
-    val jwtAudience = "jwt-audience"
-    val jwtDomain = "https://jwt-provider-domain/"
-    val jwtRealm = "ktor sample app"
-    val jwtSecret = "secret"
+    val config = environment.config
+    val jwtSecret = config.propertyOrNull("jwt.secret")?.getString() ?: "secret"
+    val jwtAudience = config.propertyOrNull("jwt.audience")?.getString() ?: "jwt-audience"
+    val jwtIssuer = config.propertyOrNull("jwt.issuer")?.getString() ?: "http://localhost:8080"
+    val jwtRealm = config.propertyOrNull("jwt.realm")?.getString() ?: "reelo-realm"
+
     authentication {
         jwt {
             realm = jwtRealm
@@ -19,11 +21,17 @@ fun Application.configureSecurity() {
                 JWT
                     .require(Algorithm.HMAC256(jwtSecret))
                     .withAudience(jwtAudience)
-                    .withIssuer(jwtDomain)
+                    .withIssuer(jwtIssuer)
                     .build()
             )
             validate { credential ->
-                if (credential.payload.audience.contains(jwtAudience)) JWTPrincipal(credential.payload) else null
+                val userId = credential.payload.getClaim("user_id").asString()
+                val tokenType = credential.payload.getClaim("token_type").asString()
+                if (userId != null && tokenType == "access" && credential.payload.audience.contains(jwtAudience)) {
+                    JWTPrincipal(credential.payload)
+                } else {
+                    null
+                }
             }
         }
     }

@@ -20,4 +20,12 @@ database:
   user: "postgres"
   password: "postgres"
 
+jwt:
+  secret: "reelo-super-secret-key-for-jwt-signing-2026"
+  audience: "reelo-audience"
+  issuer: "http://localhost:8080"
+  realm: "reelo-realm"
+  accessTokenExpiration: 900 # 15 minutes in seconds
+  refreshTokenExpiration: 2592000 # 30 days in seconds
+
 

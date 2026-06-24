@@ -43,3 +43,8 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)
 }
+
+tasks.register<JavaExec>("inspect") {
+    mainClass.set("com.xentoryx.labs.reelo.scratch.InspectKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
