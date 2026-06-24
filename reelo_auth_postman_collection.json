@@ -1,0 +1,201 @@
+{
+  "info": {
+    "name": "Reelo Auth API",
+    "description": "Postman Collection to test Reelo Backend Authentication & JWT Authorization APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\",\n  \"name\": \"Test User\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Email",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"token\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/verify",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "verify"
+          ]
+        },
+        "description": "Verify user email using the 6-digit code from the database/visualizer."
+      },
+      "response": []
+    },
+    {
+      "name": "Login User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.accessToken) {",
+              "    pm.collectionVariables.set(\"access_token\", jsonData.accessToken);",
+              "}",
+              "if (jsonData.refreshToken) {",
+              "    pm.collectionVariables.set(\"refresh_token\", jsonData.refreshToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Refresh Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.accessToken) {",
+              "    pm.collectionVariables.set(\"access_token\", jsonData.accessToken);",
+              "}",
+              "if (jsonData.refreshToken) {",
+              "    pm.collectionVariables.set(\"refresh_token\", jsonData.refreshToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/refresh",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Profile (Me)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/auth/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

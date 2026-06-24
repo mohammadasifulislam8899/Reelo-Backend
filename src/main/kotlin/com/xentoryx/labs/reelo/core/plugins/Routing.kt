@@ -6,6 +6,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import com.xentoryx.labs.reelo.feature.auth.presentation.authRoutes
+import com.xentoryx.labs.reelo.feature.video.presentation.videoRoutes
 
 fun Application.configureRouting() {
     routing {
@@ -16,5 +17,6 @@ fun Application.configureRouting() {
             call.respond(mapOf("status" to "OK", "service" to "Reelo Backend"))
         }
         authRoutes()
+        videoRoutes()
     }
 }
