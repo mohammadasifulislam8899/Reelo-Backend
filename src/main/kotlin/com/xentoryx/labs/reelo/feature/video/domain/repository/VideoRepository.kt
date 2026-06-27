@@ -7,4 +7,5 @@ import kotlin.uuid.Uuid
 interface VideoRepository {
     suspend fun getVideos(): List<Video>
     suspend fun getVideoById(id: Uuid): Video?
+    suspend fun insertVideo(video: Video): Video
 }

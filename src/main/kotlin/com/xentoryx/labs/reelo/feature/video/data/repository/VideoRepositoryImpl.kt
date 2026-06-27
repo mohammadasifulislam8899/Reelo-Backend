@@ -17,4 +17,8 @@ class VideoRepositoryImpl(
     override suspend fun getVideoById(id: Uuid): Video? {
         return localDataSource.getVideoById(id)
     }
+
+    override suspend fun insertVideo(video: Video): Video {
+        return localDataSource.insertVideo(video)
+    }
 }
