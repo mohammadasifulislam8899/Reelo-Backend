@@ -9,6 +9,7 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.selectAll
+import org.jetbrains.exposed.v1.r2dbc.insert
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -46,5 +47,21 @@ class VideoLocalDataSourceImpl(private val database: R2dbcDatabase) : VideoLocal
             .where { VideosTable.id eq id }
             .map { toVideo(it) }
             .singleOrNull()
+    }
+
+    override suspend fun insertVideo(video: Video): Video = suspendTransaction(db = database) {
+        VideosTable.insert {
+            it[id] = video.id
+            it[title] = video.title
+            it[description] = video.description
+            it[videoUrl] = video.videoUrl
+            it[thumbnailUrl] = video.thumbnailUrl
+            it[viewsCount] = video.viewsCount
+            it[duration] = video.duration
+            it[userId] = video.uploaderId
+            it[createdAt] = video.createdAt
+            it[updatedAt] = video.updatedAt
+        }
+        video
     }
 }

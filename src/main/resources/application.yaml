@@ -29,4 +29,13 @@ jwt:
   accessTokenExpiration: 900 # 15 minutes in seconds
   refreshTokenExpiration: 2592000 # 30 days in seconds
 
+storage:
+  type: "local"
+  baseUrl: "http://localhost:8080"
+  s3:
+    bucket: "reelo-videos"
+    region: "us-east-1"
+    accessKeyId: ""
+    secretAccessKey: ""
+
 

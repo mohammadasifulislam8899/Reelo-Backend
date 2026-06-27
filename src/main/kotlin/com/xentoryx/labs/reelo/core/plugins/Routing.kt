@@ -7,6 +7,8 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import com.xentoryx.labs.reelo.feature.auth.presentation.authRoutes
 import com.xentoryx.labs.reelo.feature.video.presentation.videoRoutes
+import io.ktor.server.http.content.staticFiles
+import java.io.File
 
 fun Application.configureRouting() {
     routing {
@@ -18,5 +20,8 @@ fun Application.configureRouting() {
         }
         authRoutes()
         videoRoutes()
+        
+        // Serve uploaded files statically
+        staticFiles("/uploads", File("uploads"))
     }
 }
