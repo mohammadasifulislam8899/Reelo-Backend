@@ -18,9 +18,9 @@ ktor:
       - com.xentoryx.labs.reelo.core.plugins.RoutingKt.configureRouting
 
 database:
-  r2dbcUrl: "r2dbc:h2:file:///./h2db"
-  user: "root"
-  password: ""
+  r2dbcUrl: "r2dbc:postgresql://localhost:5432/reelo"
+  user: "postgres"
+  password: "postgres"
 
 jwt:
   secret: "reelo-super-secret-key-for-jwt-signing-2026"

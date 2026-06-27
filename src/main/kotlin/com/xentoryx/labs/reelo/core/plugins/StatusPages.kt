@@ -6,6 +6,7 @@ import io.ktor.server.application.install
 import io.ktor.server.plugins.requestvalidation.RequestValidationException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
+import io.ktor.utils.io.ClosedByteChannelException
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -24,6 +25,11 @@ fun Application.configureStatusPages() {
                     message = cause.reasons.joinToString(", ")
                 )
             )
+        }
+        // ExoPlayer first sends a full GET to probe the video, then immediately
+        // cancels and switches to Range requests. This is normal — not an error.
+        exception<ClosedByteChannelException> { _, _ ->
+            // Client disconnected mid-stream (expected for video streaming)
         }
         exception<Throwable> { call, cause ->
             call.application.environment.log.error("Internal Server Error occurred", cause)
