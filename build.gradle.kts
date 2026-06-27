@@ -21,6 +21,7 @@ dependencies {
     implementation(ktorLibs.server.autoHeadResponse)
     implementation(ktorLibs.server.callLogging)
     implementation(ktorLibs.server.config.yaml)
+    implementation(ktorLibs.server.partialContent)
     implementation(ktorLibs.server.contentNegotiation)
     implementation(ktorLibs.server.core)
     implementation(ktorLibs.server.netty)

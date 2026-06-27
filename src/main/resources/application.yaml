@@ -12,6 +12,7 @@ ktor:
       - com.xentoryx.labs.reelo.core.plugins.StatusPagesKt.configureStatusPages
       - com.xentoryx.labs.reelo.core.plugins.RequestValidationKt.configureRequestValidation
       - com.xentoryx.labs.reelo.core.plugins.AutoHeadResponseKt.configureAutoHeadResponse
+      - com.xentoryx.labs.reelo.core.plugins.PartialContentKt.configurePartialContent
       - com.xentoryx.labs.reelo.core.plugins.CorsKt.configureCors
       - com.xentoryx.labs.reelo.core.plugins.RateLimitingKt.configureRateLimiting
       - com.xentoryx.labs.reelo.core.plugins.RoutingKt.configureRouting
