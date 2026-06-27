@@ -122,4 +122,25 @@ class AuthLocalDataSourceImpl(private val database: R2dbcDatabase) : AuthLocalDa
 
         true
     }
+
+    override suspend fun updateUser(
+        id: Uuid,
+        name: String,
+        bio: String?,
+        avatarUrl: String?,
+        bannerUrl: String?
+    ): User? = suspendTransaction(db = database) {
+        UsersTable.update({ UsersTable.id eq id }) {
+            it[UsersTable.name] = name
+            it[UsersTable.bio] = bio
+            if (avatarUrl != null) {
+                it[UsersTable.avatarUrl] = avatarUrl
+            }
+            if (bannerUrl != null) {
+                it[UsersTable.bannerUrl] = bannerUrl
+            }
+            it[updatedAt] = LocalDateTime.now()
+        }
+        getUserById(id)
+    }
 }

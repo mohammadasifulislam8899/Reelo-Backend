@@ -56,3 +56,11 @@ data class VerificationRequest(
 data class MessageResponse(
     val message: String
 )
+
+@Serializable
+data class UpdateProfileRequest(
+    val name: String,
+    val bio: String? = null,
+    val avatarUrl: String? = null,
+    val bannerUrl: String? = null
+)

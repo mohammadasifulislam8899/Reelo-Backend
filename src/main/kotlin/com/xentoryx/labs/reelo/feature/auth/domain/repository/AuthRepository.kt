@@ -10,4 +10,5 @@ interface AuthRepository {
     suspend fun createUser(email: String, passwordHash: String, name: String): User
     suspend fun createVerificationToken(userId: Uuid, token: String): Boolean
     suspend fun verifyUser(email: String, token: String): Boolean
+    suspend fun updateUser(id: Uuid, name: String, bio: String?, avatarUrl: String?, bannerUrl: String?): User?
 }
