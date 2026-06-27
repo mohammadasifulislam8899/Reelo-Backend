@@ -25,4 +25,8 @@ class VideoRepositoryImpl(
     override suspend fun searchVideos(query: String): List<Video> {
         return localDataSource.searchVideos(query)
     }
+
+    override suspend fun getVideosByUploader(uploaderId: Uuid): List<Video> {
+        return localDataSource.getVideosByUploader(uploaderId)
+    }
 }

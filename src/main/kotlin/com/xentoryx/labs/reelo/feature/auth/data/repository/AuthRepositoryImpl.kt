@@ -29,4 +29,14 @@ class AuthRepositoryImpl(
     override suspend fun verifyUser(email: String, token: String): Boolean {
         return localDataSource.verifyUser(email, token)
     }
+
+    override suspend fun updateUser(
+        id: Uuid,
+        name: String,
+        bio: String?,
+        avatarUrl: String?,
+        bannerUrl: String?
+    ): User? {
+        return localDataSource.updateUser(id, name, bio, avatarUrl, bannerUrl)
+    }
 }

@@ -8,6 +8,7 @@ import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideoByIdUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideosUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.UploadVideoUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.SearchVideosUseCase
+import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideosByUploaderUseCase
 import org.koin.dsl.module
 
 val videoModule = module {
@@ -17,4 +18,5 @@ val videoModule = module {
     single { GetVideoByIdUseCase(get()) }
     single { UploadVideoUseCase(get(), get()) }
     single { SearchVideosUseCase(get()) }
+    single { GetVideosByUploaderUseCase(get()) }
 }

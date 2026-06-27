@@ -17,4 +17,5 @@ val authModule = module {
     single { RefreshTokensUseCase(get(), get()) }
     single { VerifyUserUseCase(get()) }
     single { GetUserUseCase(get()) }
+    single { UpdateProfileUseCase(get()) }
 }

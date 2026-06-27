@@ -76,4 +76,12 @@ class VideoLocalDataSourceImpl(private val database: R2dbcDatabase) : VideoLocal
             .map { toVideo(it) }
             .toList()
     }
+
+    override suspend fun getVideosByUploader(uploaderId: Uuid): List<Video> = suspendTransaction(db = database) {
+        (VideosTable innerJoin UsersTable)
+            .selectAll()
+            .where { VideosTable.userId eq uploaderId }
+            .map { toVideo(it) }
+            .toList()
+    }
 }

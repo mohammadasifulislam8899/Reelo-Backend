@@ -5,6 +5,7 @@ import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideoByIdUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideosUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.UploadVideoUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.SearchVideosUseCase
+import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideosByUploaderUseCase
 import com.xentoryx.labs.reelo.feature.video.presentation.dto.VideoResponse
 import com.xentoryx.labs.reelo.feature.video.presentation.mapper.toVideoResponse
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.MessageResponse
@@ -37,6 +38,7 @@ fun Route.videoRoutes() {
     val getVideoByIdUseCase by inject<GetVideoByIdUseCase>()
     val uploadVideoUseCase by inject<UploadVideoUseCase>()
     val searchVideosUseCase by inject<SearchVideosUseCase>()
+    val getVideosByUploaderUseCase by inject<GetVideosByUploaderUseCase>()
     val database by inject<R2dbcDatabase>()
 
     route("/videos") {
@@ -67,6 +69,27 @@ fun Route.videoRoutes() {
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.application.environment.log.error("Failed to search videos", e)
+                call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+            }
+        }
+
+        get("/user/{userId}") {
+            val userIdStr = call.parameters["userId"]
+            if (userIdStr == null) {
+                call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing user ID"))
+                return@get
+            }
+            try {
+                val uploaderId = Uuid.parse(userIdStr)
+                val host = call.request.headers["Host"] ?: "localhost:8080"
+                val baseUrl = "http://$host"
+                val videos = getVideosByUploaderUseCase.execute(uploaderId)
+                val response = videos.map { it.toVideoResponse(baseUrl) }
+                call.respond(HttpStatusCode.OK, response)
+            } catch (e: IllegalArgumentException) {
+                call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid user ID format"))
+            } catch (e: Exception) {
+                call.application.environment.log.error("Failed to fetch videos by user", e)
                 call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
             }
         }

@@ -9,4 +9,5 @@ interface VideoRepository {
     suspend fun getVideoById(id: Uuid): Video?
     suspend fun insertVideo(video: Video): Video
     suspend fun searchVideos(query: String): List<Video>
+    suspend fun getVideosByUploader(uploaderId: Uuid): List<Video>
 }
