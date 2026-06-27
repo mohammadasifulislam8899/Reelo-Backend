@@ -8,3 +8,5 @@ out/
 .DS_Store
 /h2db*
 /h2*
+uploads/
+.kotlin/
