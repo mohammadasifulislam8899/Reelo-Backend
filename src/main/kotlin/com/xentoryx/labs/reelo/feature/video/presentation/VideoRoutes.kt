@@ -4,6 +4,7 @@ package com.xentoryx.labs.reelo.feature.video.presentation
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideoByIdUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.GetVideosUseCase
 import com.xentoryx.labs.reelo.feature.video.domain.usecase.UploadVideoUseCase
+import com.xentoryx.labs.reelo.feature.video.domain.usecase.SearchVideosUseCase
 import com.xentoryx.labs.reelo.feature.video.presentation.dto.VideoResponse
 import com.xentoryx.labs.reelo.feature.video.presentation.mapper.toVideoResponse
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.MessageResponse
@@ -35,6 +36,7 @@ fun Route.videoRoutes() {
     val getVideosUseCase by inject<GetVideosUseCase>()
     val getVideoByIdUseCase by inject<GetVideoByIdUseCase>()
     val uploadVideoUseCase by inject<UploadVideoUseCase>()
+    val searchVideosUseCase by inject<SearchVideosUseCase>()
     val database by inject<R2dbcDatabase>()
 
     route("/videos") {
@@ -47,6 +49,24 @@ fun Route.videoRoutes() {
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.application.environment.log.error("Failed to fetch videos", e)
+                call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+            }
+        }
+
+        get("/search") {
+            val query = call.request.queryParameters["q"]
+            if (query.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, MessageResponse("Query parameter 'q' is required"))
+                return@get
+            }
+            try {
+                val host = call.request.headers["Host"] ?: "localhost:8080"
+                val baseUrl = "http://$host"
+                val videos = searchVideosUseCase.execute(query)
+                val response = videos.map { it.toVideoResponse(baseUrl) }
+                call.respond(HttpStatusCode.OK, response)
+            } catch (e: Exception) {
+                call.application.environment.log.error("Failed to search videos", e)
                 call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
             }
         }

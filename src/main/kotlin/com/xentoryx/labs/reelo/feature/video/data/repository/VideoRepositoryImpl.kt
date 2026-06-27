@@ -21,4 +21,8 @@ class VideoRepositoryImpl(
     override suspend fun insertVideo(video: Video): Video {
         return localDataSource.insertVideo(video)
     }
+
+    override suspend fun searchVideos(query: String): List<Video> {
+        return localDataSource.searchVideos(query)
+    }
 }

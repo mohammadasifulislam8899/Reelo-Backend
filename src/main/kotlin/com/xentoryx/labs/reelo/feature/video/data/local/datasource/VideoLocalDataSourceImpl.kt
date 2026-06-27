@@ -64,4 +64,16 @@ class VideoLocalDataSourceImpl(private val database: R2dbcDatabase) : VideoLocal
         }
         video
     }
+
+    override suspend fun searchVideos(query: String): List<Video> = suspendTransaction(db = database) {
+        val queryLower = "%${query.lowercase()}%"
+        (VideosTable innerJoin UsersTable)
+            .selectAll()
+            .where {
+                (VideosTable.title.lowerCase() like queryLower) or
+                (VideosTable.description.lowerCase() like queryLower)
+            }
+            .map { toVideo(it) }
+            .toList()
+    }
 }
