@@ -79,22 +79,22 @@ fun Application.configureDatabase() {
                     Triple(
                         "Big Buck Bunny",
                         "A large and lovable rabbit deals with bullying forest creatures in this classic animated short.",
-                        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                        "https://www.w3schools.com/html/mov_bbb.mp4"
                     ),
                     Triple(
-                        "Sintel",
-                        "The story of Sintel, a lonely girl who is befriended by a dragon named Scales.",
-                        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+                        "Bear Video",
+                        "A sweet bear scratching itself against a tree in the wild.",
+                        "https://www.w3schools.com/html/movie.mp4"
                     ),
                     Triple(
-                        "Tears of Steel",
-                        "A science fiction film set in a dystopian future where giant robots threaten humanity.",
-                        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+                        "Car Detection",
+                        "A computer vision test video featuring car detection on a highway.",
+                        "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/car-detection.mp4"
                     ),
                     Triple(
-                        "Elephant's Dream",
-                        "The story of Proog and Emo, two characters exploring a surreal and chaotic world.",
-                        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+                        "Bottle Detection",
+                        "A computer vision test video featuring bottle detection on a conveyor belt.",
+                        "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/bottle-detection.mp4"
                     )
                 )
 
@@ -105,7 +105,7 @@ fun Application.configureDatabase() {
                     "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=800&auto=format&fit=crop&q=60"
                 )
 
-                val durations = listOf(596, 888, 734, 653)
+                val durations = listOf(10, 12, 30, 10)
 
                 dummyVideos.forEachIndexed { index, (title, desc, url) ->
                     VideosTable.insert {
