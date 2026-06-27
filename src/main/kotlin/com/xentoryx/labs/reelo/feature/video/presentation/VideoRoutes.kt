@@ -40,8 +40,10 @@ fun Route.videoRoutes() {
     route("/videos") {
         get {
             try {
+                val host = call.request.headers["Host"] ?: "localhost:8080"
+                val baseUrl = "http://$host"
                 val videos = getVideosUseCase.execute()
-                val response = videos.map { it.toVideoResponse() }
+                val response = videos.map { it.toVideoResponse(baseUrl) }
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.application.environment.log.error("Failed to fetch videos", e)
@@ -60,7 +62,9 @@ fun Route.videoRoutes() {
                 val videoId = Uuid.parse(idStr)
                 val video = getVideoByIdUseCase.execute(videoId)
                 if (video != null) {
-                    call.respond(HttpStatusCode.OK, video.toVideoResponse())
+                    val host = call.request.headers["Host"] ?: "localhost:8080"
+                    val baseUrl = "http://$host"
+                    call.respond(HttpStatusCode.OK, video.toVideoResponse(baseUrl))
                 } else {
                     call.respond(HttpStatusCode.NotFound, MessageResponse("Video not found"))
                 }
@@ -120,7 +124,9 @@ fun Route.videoRoutes() {
                         uploaderId = uploaderId
                     )
 
-                    call.respond(HttpStatusCode.Created, video.toVideoResponse())
+                    val host = call.request.headers["Host"] ?: "localhost:8080"
+                    val baseUrl = "http://$host"
+                    call.respond(HttpStatusCode.Created, video.toVideoResponse(baseUrl))
                 } catch (e: Exception) {
                     call.application.environment.log.error("Failed to upload video", e)
                     call.respond(
