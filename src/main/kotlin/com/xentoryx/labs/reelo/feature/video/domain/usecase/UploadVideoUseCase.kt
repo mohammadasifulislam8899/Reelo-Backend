@@ -40,4 +40,32 @@ class UploadVideoUseCase(
         
         return videoRepository.insertVideo(video)
     }
+
+    suspend fun executeWithUrl(
+        title: String,
+        description: String?,
+        videoUrl: String,
+        uploaderId: Uuid,
+        duration: Int = 10
+    ): Video {
+        val thumbnailUrl = "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=60"
+        val now = LocalDateTime.now()
+        
+        val video = Video(
+            id = Uuid.random(),
+            title = title,
+            description = description,
+            videoUrl = videoUrl,
+            thumbnailUrl = thumbnailUrl,
+            viewsCount = 0L,
+            duration = duration,
+            uploaderId = uploaderId,
+            uploaderName = "",
+            uploaderAvatarUrl = null,
+            createdAt = now,
+            updatedAt = now
+        )
+        
+        return videoRepository.insertVideo(video)
+    }
 }
