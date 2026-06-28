@@ -21,8 +21,24 @@ import com.xentoryx.labs.reelo.feature.auth.domain.usecase.GetUserUseCase
 import com.xentoryx.labs.reelo.feature.auth.domain.usecase.UpdateProfileUseCase
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.*
 import com.xentoryx.labs.reelo.feature.auth.presentation.mapper.toUserResponse
+import com.xentoryx.labs.reelo.core.db.schema.SubscriptionsTable
+import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
+import org.jetbrains.exposed.v1.r2dbc.selectAll
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.koin.ktor.ext.inject
 import kotlin.uuid.Uuid
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class CreatorProfileResponse(
+    val id: String,
+    val name: String,
+    val bio: String?,
+    val avatarUrl: String?,
+    val bannerUrl: String?,
+    val subscribersCount: Long,
+    val isSubscribed: Boolean
+)
 
 fun Route.authRoutes() {
     val registerUserUseCase by inject<RegisterUserUseCase>()
@@ -31,6 +47,7 @@ fun Route.authRoutes() {
     val verifyUserUseCase by inject<VerifyUserUseCase>()
     val getUserUseCase by inject<GetUserUseCase>()
     val updateProfileUseCase by inject<UpdateProfileUseCase>()
+    val database by inject<R2dbcDatabase>()
 
     route("/auth") {
         post("/register") {
@@ -139,6 +156,63 @@ fun Route.authRoutes() {
                     call.respond(HttpStatusCode.BadRequest, MessageResponse(e.message ?: "Invalid request"))
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred"))
+                }
+            }
+
+            get("/user/{id}") {
+                val idStr = call.parameters["id"]
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing user ID"))
+                    return@get
+                }
+
+                try {
+                    val targetUserUuid = Uuid.parse(idStr)
+                    val targetUser = getUserUseCase.execute(targetUserUuid)
+                    
+                    if (targetUser != null) {
+                        val principal = call.principal<JWTPrincipal>()
+                        val currentUserIdStr = principal?.payload?.getClaim("user_id")?.asString()
+                        
+                        val host = call.request.headers["Host"] ?: "localhost:8080"
+                        val baseUrl = "http://$host"
+
+                        val profileResponse = suspendTransaction(db = database) {
+                            val subscribers = SubscriptionsTable.selectAll()
+                                .where { SubscriptionsTable.channelId eq targetUserUuid }
+                                .count()
+
+                            var isSubscribed = false
+                            if (currentUserIdStr != null) {
+                                val currentUserId = Uuid.parse(currentUserIdStr)
+                                isSubscribed = SubscriptionsTable.selectAll()
+                                    .where { (SubscriptionsTable.subscriberId eq currentUserId) and (SubscriptionsTable.channelId eq targetUserUuid) }
+                                    .count() > 0
+                            }
+
+                            val avatarUrlStr = targetUser.avatarUrl?.let { if (it.startsWith("http")) it else "$baseUrl$it" }
+                            val bannerUrlStr = targetUser.bannerUrl?.let { if (it.startsWith("http")) it else "$baseUrl$it" }
+
+                            CreatorProfileResponse(
+                                id = targetUser.id.toString(),
+                                name = targetUser.name,
+                                bio = targetUser.bio,
+                                avatarUrl = avatarUrlStr,
+                                bannerUrl = bannerUrlStr,
+                                subscribersCount = subscribers,
+                                isSubscribed = isSubscribed
+                            )
+                        }
+
+                        call.respond(HttpStatusCode.OK, profileResponse)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, MessageResponse("User not found"))
+                    }
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid user ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to fetch creator profile", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("Error: ${e.message}"))
                 }
             }
         }
