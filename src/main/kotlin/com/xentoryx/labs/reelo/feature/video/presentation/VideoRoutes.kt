@@ -10,10 +10,18 @@ import com.xentoryx.labs.reelo.feature.video.presentation.dto.VideoResponse
 import com.xentoryx.labs.reelo.feature.video.presentation.mapper.toVideoResponse
 import com.xentoryx.labs.reelo.feature.auth.presentation.dto.MessageResponse
 import com.xentoryx.labs.reelo.core.db.schema.UsersTable
+import com.xentoryx.labs.reelo.core.db.schema.VideosTable
+import com.xentoryx.labs.reelo.core.db.schema.VideoLikesTable
+import com.xentoryx.labs.reelo.core.db.schema.CommentsTable
+import com.xentoryx.labs.reelo.core.db.schema.SubscriptionsTable
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.selectAll
+import org.jetbrains.exposed.v1.r2dbc.update
+import org.jetbrains.exposed.v1.r2dbc.insert
+import org.jetbrains.exposed.v1.r2dbc.deleteWhere
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.firstOrNull
 import io.ktor.server.routing.Route
@@ -30,6 +38,7 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.content.streamProvider
+import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.receiveChannel
 import io.ktor.utils.io.jvm.javaio.toInputStream
@@ -41,6 +50,29 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class UploadInitResponse(val uploadId: String)
 
+@Serializable
+data class VideoSocialState(
+    val likesCount: Long,
+    val dislikesCount: Long,
+    val userLikeStatus: String, // "LIKE", "DISLIKE", "NONE"
+    val isSubscribed: Boolean,
+    val subscribersCount: Long
+)
+
+@Serializable
+data class CommentResponse(
+    val id: String,
+    val content: String,
+    val createdAt: String,
+    val authorName: String,
+    val authorAvatarUrl: String?
+)
+
+@Serializable
+data class AddCommentRequest(val content: String)
+
+
+private val viewCooldowns = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
 fun Route.videoRoutes() {
     val getVideosUseCase by inject<GetVideosUseCase>()
@@ -129,6 +161,360 @@ fun Route.videoRoutes() {
         }
 
         authenticate(optional = true) {
+            post("/{id}/view") {
+                val idStr = call.parameters["id"]
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@post
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.payload?.getClaim("user_id")?.asString()
+                    val ip = call.request.local.remoteHost
+                    
+                    val identityKey = if (userId != null) "user:$userId" else "ip:$ip"
+                    val cacheKey = "$identityKey:$idStr"
+                    
+                    val currentTime = System.currentTimeMillis()
+                    val lastViewTime = viewCooldowns[cacheKey] ?: 0L
+                    
+                    // 1-hour cooldown
+                    if (currentTime - lastViewTime >= 3600000L) {
+                        viewCooldowns[cacheKey] = currentTime
+                        
+                        // Increment views count in DB
+                        suspendTransaction(db = database) {
+                            VideosTable.update({ VideosTable.id eq videoId }) {
+                                it[viewsCount] = VideosTable.viewsCount + 1
+                            }
+                        }
+                    }
+                    
+                    call.respond(HttpStatusCode.OK, MessageResponse("View registered successfully"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid video ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to register video view", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+                }
+            }
+
+            get("/{id}/social") {
+                val idStr = call.parameters["id"]
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@get
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.payload?.getClaim("user_id")?.asString()
+
+                    val socialState = suspendTransaction(db = database) {
+                        val likes = VideoLikesTable.selectAll()
+                            .where { (VideoLikesTable.videoId eq videoId) and (VideoLikesTable.isLike eq true) }
+                            .count()
+                        
+                        val dislikes = VideoLikesTable.selectAll()
+                            .where { (VideoLikesTable.videoId eq videoId) and (VideoLikesTable.isLike eq false) }
+                            .count()
+
+                        val creatorId = VideosTable.selectAll()
+                            .where { VideosTable.id eq videoId }
+                            .map { it[VideosTable.userId] }
+                            .firstOrNull() ?: throw Exception("Uploader not found")
+
+                        val subscribers = SubscriptionsTable.selectAll()
+                            .where { SubscriptionsTable.channelId eq creatorId }
+                            .count()
+
+                        var userLikeStatus = "NONE"
+                        var isSubscribed = false
+
+                        if (userId != null) {
+                            val currentUserId = Uuid.parse(userId)
+                            val userLike = VideoLikesTable.selectAll()
+                                .where { (VideoLikesTable.videoId eq videoId) and (VideoLikesTable.userId eq currentUserId) }
+                                .map { it[VideoLikesTable.isLike] }
+                                .firstOrNull()
+                            
+                            if (userLike != null) {
+                                userLikeStatus = if (userLike) "LIKE" else "DISLIKE"
+                            }
+
+                            isSubscribed = SubscriptionsTable.selectAll()
+                                .where { (SubscriptionsTable.subscriberId eq currentUserId) and (SubscriptionsTable.channelId eq creatorId) }
+                                .count() > 0
+                        }
+
+                        VideoSocialState(likes, dislikes, userLikeStatus, isSubscribed, subscribers)
+                    }
+
+                    call.respond(HttpStatusCode.OK, socialState)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid video ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to fetch social state", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+                }
+            }
+
+            post("/{id}/like") {
+                val idStr = call.parameters["id"]
+                val principal = call.principal<JWTPrincipal>()
+                val userIdStr = principal?.payload?.getClaim("user_id")?.asString()
+
+                if (userIdStr == null) {
+                    call.respond(HttpStatusCode.Unauthorized, MessageResponse("Authentication required to like"))
+                    return@post
+                }
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@post
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+                    val currentUserId = Uuid.parse(userIdStr)
+
+                    suspendTransaction(db = database) {
+                        val existingLike = VideoLikesTable.selectAll()
+                            .where { (VideoLikesTable.videoId eq videoId) and (VideoLikesTable.userId eq currentUserId) }
+                            .map { Pair(it[VideoLikesTable.id], it[VideoLikesTable.isLike]) }
+                            .firstOrNull()
+
+                        if (existingLike == null) {
+                            VideoLikesTable.insert {
+                                it[id] = Uuid.random()
+                                it[VideoLikesTable.videoId] = videoId
+                                it[VideoLikesTable.userId] = currentUserId
+                                it[isLike] = true
+                                it[createdAt] = java.time.LocalDateTime.now()
+                            }
+                        } else {
+                            val (likeId, isLike) = existingLike
+                            if (isLike) {
+                                // Toggle off
+                                VideoLikesTable.deleteWhere { VideoLikesTable.id eq likeId }
+                            } else {
+                                // Change from dislike to like
+                                VideoLikesTable.update({ VideoLikesTable.id eq likeId }) {
+                                    it[VideoLikesTable.isLike] = true
+                                }
+                            }
+                        }
+                    }
+
+                    call.respond(HttpStatusCode.OK, MessageResponse("Like status updated"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to update like status", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("Failed: ${e.message}"))
+                }
+            }
+
+            post("/{id}/dislike") {
+                val idStr = call.parameters["id"]
+                val principal = call.principal<JWTPrincipal>()
+                val userIdStr = principal?.payload?.getClaim("user_id")?.asString()
+
+                if (userIdStr == null) {
+                    call.respond(HttpStatusCode.Unauthorized, MessageResponse("Authentication required to dislike"))
+                    return@post
+                }
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@post
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+                    val currentUserId = Uuid.parse(userIdStr)
+
+                    suspendTransaction(db = database) {
+                        val existingLike = VideoLikesTable.selectAll()
+                            .where { (VideoLikesTable.videoId eq videoId) and (VideoLikesTable.userId eq currentUserId) }
+                            .map { Pair(it[VideoLikesTable.id], it[VideoLikesTable.isLike]) }
+                            .firstOrNull()
+
+                        if (existingLike == null) {
+                            VideoLikesTable.insert {
+                                it[id] = Uuid.random()
+                                it[VideoLikesTable.videoId] = videoId
+                                it[VideoLikesTable.userId] = currentUserId
+                                it[isLike] = false
+                                it[createdAt] = java.time.LocalDateTime.now()
+                            }
+                        } else {
+                            val (likeId, isLike) = existingLike
+                            if (!isLike) {
+                                // Toggle off
+                                VideoLikesTable.deleteWhere { VideoLikesTable.id eq likeId }
+                            } else {
+                                // Change from like to dislike
+                                VideoLikesTable.update({ VideoLikesTable.id eq likeId }) {
+                                    it[VideoLikesTable.isLike] = false
+                                }
+                            }
+                        }
+                    }
+
+                    call.respond(HttpStatusCode.OK, MessageResponse("Dislike status updated"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to update dislike status", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("Failed: ${e.message}"))
+                }
+            }
+
+            post("/subscribe/{channelId}") {
+                val channelIdStr = call.parameters["channelId"]
+                val principal = call.principal<JWTPrincipal>()
+                val userIdStr = principal?.payload?.getClaim("user_id")?.asString()
+
+                if (userIdStr == null) {
+                    call.respond(HttpStatusCode.Unauthorized, MessageResponse("Authentication required to subscribe"))
+                    return@post
+                }
+                if (channelIdStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing channel ID"))
+                    return@post
+                }
+
+                try {
+                    val channelId = Uuid.parse(channelIdStr)
+                    val subscriberId = Uuid.parse(userIdStr)
+
+                    if (channelId == subscriberId) {
+                        call.respond(HttpStatusCode.BadRequest, MessageResponse("You cannot subscribe to yourself"))
+                        return@post
+                    }
+
+                    suspendTransaction(db = database) {
+                        val existingSub = SubscriptionsTable.selectAll()
+                            .where { (SubscriptionsTable.subscriberId eq subscriberId) and (SubscriptionsTable.channelId eq channelId) }
+                            .map { it[SubscriptionsTable.id] }
+                            .firstOrNull()
+
+                        if (existingSub == null) {
+                            SubscriptionsTable.insert {
+                                it[id] = Uuid.random()
+                                it[SubscriptionsTable.subscriberId] = subscriberId
+                                it[SubscriptionsTable.channelId] = channelId
+                                it[createdAt] = java.time.LocalDateTime.now()
+                            }
+                        } else {
+                            SubscriptionsTable.deleteWhere { SubscriptionsTable.id eq existingSub }
+                        }
+                    }
+
+                    call.respond(HttpStatusCode.OK, MessageResponse("Subscription status updated"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid channel ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to update subscription", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("Failed: ${e.message}"))
+                }
+            }
+
+            get("/{id}/comments") {
+                val idStr = call.parameters["id"]
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@get
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+
+                    val comments = suspendTransaction(db = database) {
+                        (CommentsTable innerJoin UsersTable)
+                            .selectAll()
+                            .where { CommentsTable.videoId eq videoId }
+                            .orderBy(CommentsTable.createdAt to SortOrder.DESC)
+                            .map { row ->
+                                CommentResponse(
+                                    id = row[CommentsTable.id].toString(),
+                                    content = row[CommentsTable.content],
+                                    createdAt = row[CommentsTable.createdAt].toString(),
+                                    authorName = row[UsersTable.name],
+                                    authorAvatarUrl = row[UsersTable.avatarUrl]
+                                )
+                            }
+                    }
+
+                    call.respond(HttpStatusCode.OK, comments)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid video ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to fetch comments", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+                }
+            }
+
+            post("/{id}/comments") {
+                val idStr = call.parameters["id"]
+                val principal = call.principal<JWTPrincipal>()
+                val userIdStr = principal?.payload?.getClaim("user_id")?.asString()
+
+                if (userIdStr == null) {
+                    call.respond(HttpStatusCode.Unauthorized, MessageResponse("Authentication required to post comments"))
+                    return@post
+                }
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Missing video ID"))
+                    return@post
+                }
+
+                try {
+                    val videoId = Uuid.parse(idStr)
+                    val currentUserId = Uuid.parse(userIdStr)
+                    val request = call.receive<AddCommentRequest>()
+
+                    if (request.content.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, MessageResponse("Comment content cannot be empty"))
+                        return@post
+                    }
+
+                    val commentResponse = suspendTransaction(db = database) {
+                        val commentId = Uuid.random()
+                        val now = java.time.LocalDateTime.now()
+
+                        CommentsTable.insert {
+                            it[id] = commentId
+                            it[CommentsTable.videoId] = videoId
+                            it[CommentsTable.userId] = currentUserId
+                            it[content] = request.content
+                            it[createdAt] = now
+                        }
+
+                        val userRow = UsersTable.selectAll()
+                            .where { UsersTable.id eq currentUserId }
+                            .firstOrNull() ?: throw Exception("User not found")
+
+                        CommentResponse(
+                            id = commentId.toString(),
+                            content = request.content,
+                            createdAt = now.toString(),
+                            authorName = userRow[UsersTable.name],
+                            authorAvatarUrl = userRow[UsersTable.avatarUrl]
+                        )
+                    }
+
+                    call.respond(HttpStatusCode.Created, commentResponse)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, MessageResponse("Invalid video ID format"))
+                } catch (e: Exception) {
+                    call.application.environment.log.error("Failed to post comment", e)
+                    call.respond(HttpStatusCode.InternalServerError, MessageResponse("An unexpected error occurred: ${e.message}"))
+                }
+            }
+
             post("/upload/init") {
                 val uploadId = Uuid.random().toString()
                 // Ensure temp folder exists
