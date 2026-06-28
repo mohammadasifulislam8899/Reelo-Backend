@@ -25,6 +25,7 @@ import com.xentoryx.labs.reelo.core.db.schema.SubscriptionsTable
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.core.*
 import org.koin.ktor.ext.inject
 import kotlin.uuid.Uuid
 import kotlinx.serialization.Serializable

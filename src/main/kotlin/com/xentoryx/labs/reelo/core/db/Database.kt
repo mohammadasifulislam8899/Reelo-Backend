@@ -12,6 +12,7 @@ import org.jetbrains.exposed.v1.r2dbc.insert
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import java.time.LocalDateTime
 import kotlin.uuid.Uuid
+import java.net.Socket
 
 // Import all centralized database tables
 import com.xentoryx.labs.reelo.core.db.schema.*
@@ -23,11 +24,35 @@ val databaseModule = module {
         val user = config.propertyOrNull("database.user")?.getString() ?: "root"
         val password = config.propertyOrNull("database.password")?.getString() ?: ""
 
-        get<Application>().environment.log.info("Connecting to Exposed database using R2DBC URL: $r2dbcUrl")
+        val logger = get<Application>().environment.log
+        var resolvedUrl = r2dbcUrl
+        var resolvedUser = user
+        var resolvedPassword = password
+
+        if (r2dbcUrl.startsWith("r2dbc:postgresql://")) {
+            val hostPort = r2dbcUrl.removePrefix("r2dbc:postgresql://").substringBefore("/")
+            val host = hostPort.substringBefore(":")
+            val port = hostPort.substringAfter(":", "5432").toIntOrNull() ?: 5432
+
+            val isReachable = try {
+                Socket(host, port).use { true }
+            } catch (e: Exception) {
+                false
+            }
+
+            if (!isReachable) {
+                logger.warn("PostgreSQL server at $host:$port is unreachable. Falling back to local H2 database.")
+                resolvedUrl = "r2dbc:h2:file:///./h2db"
+                resolvedUser = "root"
+                resolvedPassword = ""
+            }
+        }
+
+        logger.info("Connecting to Exposed database using R2DBC URL: $resolvedUrl")
         R2dbcDatabase.connect(
-            url = r2dbcUrl,
-            user = user,
-            password = password
+            url = resolvedUrl,
+            user = resolvedUser,
+            password = resolvedPassword
         )
     }
 }
@@ -35,23 +60,46 @@ val databaseModule = module {
 @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 fun Application.configureDatabase() {
     // Triggers the database connection immediately on startup
-    val database by inject<R2dbcDatabase>()
+    var database = inject<R2dbcDatabase>().value
 
     // Run schema creation on startup to verify/create missing tables and columns
     runBlocking {
-        suspendTransaction(db = database) {
-            SchemaUtils.createMissingTablesAndColumns(
-                UsersTable,
-                VerificationTokensTable,
-                VideosTable,
-                CommentsTable,
-                SubscriptionsTable,
-                VideoLikesTable,
-                PlaylistsTable,
-                PlaylistVideosTable
+        try {
+            suspendTransaction(db = database) {
+                SchemaUtils.createMissingTablesAndColumns(
+                    UsersTable,
+                    VerificationTokensTable,
+                    VideosTable,
+                    CommentsTable,
+                    SubscriptionsTable,
+                    VideoLikesTable,
+                    PlaylistsTable,
+                    PlaylistVideosTable
+                )
+            }
+        } catch (e: Exception) {
+            environment.log.warn("Primary database connection failed. Falling back to local H2 database: $e")
+            database = R2dbcDatabase.connect(
+                url = "r2dbc:h2:file:///./h2db",
+                user = "root",
+                password = ""
             )
+            // Re-register the fallback database in Koin if needed, or pass it to transactions
+            suspendTransaction(db = database) {
+                SchemaUtils.createMissingTablesAndColumns(
+                    UsersTable,
+                    VerificationTokensTable,
+                    VideosTable,
+                    CommentsTable,
+                    SubscriptionsTable,
+                    VideoLikesTable,
+                    PlaylistsTable,
+                    PlaylistVideosTable
+                )
+            }
+        }
 
-            // Seed dummy video and user data if videos are empty
+        suspendTransaction(db = database) {      // Seed dummy video and user data if videos are empty
             val hasVideos = VideosTable.selectAll().firstOrNull() != null
             if (!hasVideos) {
                 val existingUser = UsersTable.selectAll().firstOrNull()
